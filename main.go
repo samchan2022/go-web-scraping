@@ -123,6 +123,7 @@ func main() {
     }
 
     // Subscribe to both channels
+    // ch url and ch finish
     for c := 0; c < len(seedUrls); {
         select {
         case url := <-chUrls:
@@ -134,9 +135,9 @@ func main() {
 
     // We're done! Print the results...
 
-    fmt.Println("\nFound", len(foundUrls), "unique urls:\n")
+    fmt.Println("\nFound", len(foundUrls), "unique urls:")
 
-    for url, _ := range foundUrls {
+    for url := range foundUrls {
         fmt.Println(" - " + url)
     }
 
