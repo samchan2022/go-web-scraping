@@ -1,145 +1,192 @@
 package main
 
 import (
-    "fmt"
-    "net/url"
-    "path"
-    "regexp"
-
-    "net/http"
-    "os"
-    "golang.org/x/net/html"
+	"go/webscraping/helper"
+	"log"
+	"os"
+	"sync"
+	"time"
 )
 
-// Helper function to pull the href attribute from a Token
-func getHref(t html.Token) (ok bool, href string) {
-    // Iterate over token attributes until we find an "href"
-    for _, a := range t.Attr {
-        if a.Key == "href" {
-            href = a.Val
-            ok = true
-        }
-    }
-    
-    // "bare" return will return the variables (ok, href) as 
-    // defined in the function definition
-    return
+// Job for worker
+type workerJob struct {
+    Cursor string
 }
 
-// Extract all http** links from a given webpage
-func crawl(rootUrl string, ch chan string, chFinished chan bool) {
-    resp, err := http.Get(rootUrl)
-    
-    //http.Response.Body
-    //The response body is streamed on demand as the Body field
+// Result of a worker
+type workerResult struct {
+    Value string
+}
 
-    // what does defer means?
-    // go routine
-    fmt.Println("---------------------------------------------------")
-    fmt.Println("rootUrl", rootUrl)
-    defer func() {
-        // Notify that we're done after this function
-        chFinished <- true
-    }()
+type Container struct {
+    mu       sync.Mutex
+    counters []string
+}
 
-    if err != nil {
-        fmt.Println("ERROR: Failed to crawl:", rootUrl)
-        return
+//type LinkObj struct {
+    //Parent string
+    //Link string
+    //Depth int
+//}
+//type LinkObj struct {
+    //Parent string
+    //Link string
+    //Depth int
+//}
+
+func contains(s []string, e string) bool {
+    for _, a := range s {
+        if a == e {
+            return true
+        }
     }
+    return false
+}
 
-    b := resp.Body
-    defer b.Close() // close Body when the function completes
-    //fmt.Println("---------------------------------------------------")
-    //bytes, _ := ioutil.ReadAll(b)
-    //fmt.Println("body: ",string(bytes))
-    //fmt.Println("---------------------------------------------------")
+func (c *Container) inc(name string) bool{
+    c.mu.Lock()
+    defer c.mu.Unlock()
 
-    z := html.NewTokenizer(b)
-
-    for {
-        tt := z.Next()
-
-        switch {
-        case tt == html.ErrorToken:
-            // End of the document, we're done
-            return
-        case tt == html.StartTagToken:
-            t := z.Token()
+    log.Println("===================================================")
+    //log.Println(c.counters)
+    //log.Println(name)
+    if !contains(c.counters, name) {
+        c.counters = append(c.counters, name)
+        log.Println("should add")
+        return true
+    }
+    log.Println("should not add")
+    return false
+}
 
 
-            // Check if the token is an <a> tag
-            isAnchor := t.Data == "a"
-            if !isAnchor {
-                continue
-            }
-            //fmt.Println("---------------------------------------------------")
-            //fmt.Println(t.Data)
+func worker(jobs chan workerJob, results chan<- workerResult, wg *sync.WaitGroup, c *Container, domainUrl string) {
+    for j := range jobs {
+        hrefs := helper.GetLinksFromSinglePage( domainUrl, j.Cursor)
 
-            // Extract the href value, if there is one
-            ok, relUrl := getHref(t)
-            fmt.Println("url", relUrl)
-            if !ok {
-                continue
-            }
+        time.Sleep(time.Millisecond * 100)
+        log.Println("len: links",len(hrefs))
+        for _, href := range hrefs{
+            //var linkObj LinkObj
+            //linkObj.Parent = j.Root
+            //linkObj.Link = link
 
-            // Make sure it sticks at the root
-            // use compile to save time / processing power
-            r, _ := regexp.Compile(`^/`)
-            isSameDomain:= r.MatchString(relUrl)
-            if isSameDomain {
-                //absoluteUrl := rootUrl + url
-                //absoluteUrl := rootUrl + url
-                u, _ := url.Parse(rootUrl)
-                u.Path = path.Join(u.Path, relUrl)
-                //absoluteUrl := path.Join(rootUrl, relUrl)
+            //u, _ := url.Parse(j.Cursor)
+            //u.Path = path.Join(u.Path, href)
+            //linkList = append(linkList, u.String())
+            //newlink := u.String()
+
+            log.Println("===================================================")
+            //time.Sleep(time.Second* 1)
+            log.Println("root", j.Cursor)
+            log.Println("href", href)
+            //log.Println( c.coun00ters)
+
+            //if !helper.TestUrl(newlink){
                 //continue
-                //ch <- url
-                ch <- u.String()
-            }
-
-            // Make sure the url begines in http**
-            //hasProto := strings.Index(url, "http") == 0
-            //if hasProto {
-                //ch <- url
             //}
 
+            if !c.inc(href){
+                continue
+            }
+
+            // Send worker result to result channel
+            //---------------------------------------------------
+            r := workerResult{
+                Value: domainUrl + href,
+            }
+            results <- r
+
+            // Create a new job
+            //---------------------------------------------------
+
+            newJob := workerJob{
+                Cursor: href,
+            }
+
+            // Increment the wait group count
+            wg.Add(1)
+            // Invoke jobs
+            go func() {
+                jobs <- newJob
+            }()
         }
+        // Once the job is finished, decrement the wait group count
+        wg.Done()
     }
 }
 
-func main() {
-    foundUrls := make(map[string]bool)
-    seedUrls := os.Args[1:]
-    fmt.Print("url", seedUrls )
-    //return
+func GetAllDomainLinks( rootUrl string, workerCount int, filename string){
 
-    // Channels
-    chUrls := make(chan string)
-    chFinished := make(chan bool) 
-
-    // Kick off the crawl process (concurrently)
-    for _, url := range seedUrls {
-        go crawl(url, chUrls, chFinished)
+    c := Container{
+        //counters: map[string]int{"a": 0, "b": 0},
+        //counters: []string{rootUrl},
+        counters: []string{},
     }
 
-    // Subscribe to both channels
-    // ch url and ch finish
-    for c := 0; c < len(seedUrls); {
-        select {
-        case url := <-chUrls:
-            foundUrls[url] = true
-        case <-chFinished:
-            c++
+    jobs := make(chan workerJob, workerCount)
+
+    //var csv [][]string
+    //header := []string{"Links"}
+    //csv = append(csv, header)
+
+    f, err := os.Create(filename)
+    if err != nil {
+        panic(err)
+    }
+
+    // result channel
+    results := make(chan workerResult)
+
+    isVisitied := make(chan bool)
+    wg := &sync.WaitGroup{}
+
+    // Number of worker count
+    for i := 0; i < workerCount; i++ {
+        go worker(jobs, results, wg, &c, rootUrl)
+    }
+
+    // Initialise the first job
+    wg.Add(1)
+    go func() {
+        jobs <- workerJob{
+            Cursor: "",
         }
-    }
+    }()
 
-    // We're done! Print the results...
+    // Wait for all jobs to finish 
+    go func() {
+        wg.Wait()
+        isVisitied <- true
+    }()
 
-    fmt.Println("\nFound", len(foundUrls), "unique urls:")
+    loop:
+        for {
+            select {
+            case res := <-results:
+                var data []string
+                data = append(data, res.Value)
+                //csv = append(csv, data)
+                f.WriteString(res.Value +"\n")
+                log.Printf(`result=%#v`, res.Value)
 
-    for url := range foundUrls {
-        fmt.Println(" - " + url)
-    }
+            case <-isVisitied:
+                log.Printf(`Finished`)
+                close(jobs)
+                break loop
+            }
+        }
+    //helper.WriteCsv( csv, filename)
+    log.Println("count", c.counters)
+}
 
-    close(chUrls)
+func main(){
+    //GetAllDomainLinks("http://localhost:3000", 1,"test.csv")
+    sTime := time.Now()
+    //GetAllDomainLinks("https://monzo.com", 3, "monzo.csv")
+    GetAllDomainLinks("http://go-colly.org", 10, "colly.csv")
+    //GetAllDomainLinks("", 1, "colly.csv")
+
+    elapsedTime := time.Since(sTime)
+    log.Println("elapsed Time: ", elapsedTime)
 }
