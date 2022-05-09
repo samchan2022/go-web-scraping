@@ -1,13 +1,14 @@
 package helper
 
 import (
-	"encoding/csv"
-	"log"
-	"os"
+    "encoding/csv"
+    "log"
+    "os"
 )
 
+type File struct{}
 
-func ReadCsv(path string) [][]string {
+func (*File) ReadCsv(path string) [][]string {
     csvFile, err := os.Open( path )
     if err != nil {
         log.Println(err)
@@ -21,21 +22,21 @@ func ReadCsv(path string) [][]string {
     return data
 }
 
-func WriteCsv(rows [][]string, filepath string){
-	csvfile, err := os.Create(filepath)
+func (*File) WriteCsv(rows [][]string, filepath string){
+    csvfile, err := os.Create(filepath)
  
-	if err != nil {
-		log.Println("failed creating file: %s", err)
-	}
+    if err != nil {
+        log.Printf("failed creating file: %s\n", err)
+    }
  
-	csvwriter := csv.NewWriter(csvfile)
+    csvwriter := csv.NewWriter(csvfile)
  
-	for _, row := range rows {
-		_ = csvwriter.Write(row)
-	}
+    for _, row := range rows {
+        _ = csvwriter.Write(row)
+    }
  
-	csvwriter.Flush()
+    csvwriter.Flush()
  
-	csvfile.Close()
+    csvfile.Close()
 }
 

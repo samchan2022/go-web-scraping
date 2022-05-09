@@ -4,14 +4,13 @@ import (
 	"log"
 	"net/http"
 	"net/url"
+	"path"
 	"path/filepath"
-
-	//"net/url"
-	//"path"
 	"regexp"
-
 	"golang.org/x/net/html"
 )
+
+type Html struct{}
 
 func getHref(t html.Token) (ok bool, href string) {
     // Iterate over token attributes until we find an "href"
@@ -26,64 +25,10 @@ func getHref(t html.Token) (ok bool, href string) {
     return
 }
 
-func TestUrl(url string) bool{
-	resp, _ := http.Get(url)
-	if resp.StatusCode > 400 {
-		return false
-	}
-    return true
-}
-
-func testStatus(url string, ch chan string, chFinished chan bool) {
-	resp, err := http.Get(url)
-
-	defer func() {
-		// Notify that we're done after this function
-		chFinished <- true
-	}()
-
-	if err != nil {
-		log.Printf("ERROR: Failed to check  %v %v\n", url, err)
-		return
-	}
-	if resp.StatusCode > 400 {
-		//fmt.Printf("ERROR: Not good %v %v\n", url , resp.Status)
-		return
-	}
-
-	ch <- url
-}
-
-func testUrls(urls []string) []string {
-	testUrls := make(chan string, 5)
-	testFinished := make(chan bool, 5)
-
-	for _, url := range urls {
-		go func(v string) {
-			testStatus(v, testUrls, testFinished)
-		}(url)
-	}
-
-	var goodUrls []string
-
-	for c := 0; c < len(urls); {
-		select {
-		case url := <-testUrls:
-			//goodUrls[url] = true
-            goodUrls = append(goodUrls, url)
-		case <-testFinished:
-			c++
-		}
-	}
-	log.Println("\nFound", len(goodUrls), "good urls:\n")
-	close(testUrls)
-	close(testFinished)
-	return goodUrls
-}
-
-
-func GetLinksFromSinglePage(domainUrl string, cursor string) []string{
-    absUrl := domainUrl + cursor
+func (*Html) GetLinksFromSinglePage(domainUrl string, relPath string) []string{
+    u, _ := url.Parse(domainUrl)
+    u.Path = path.Join(u.Path, relPath)
+    absUrl := u.String()
     resp, err := http.Get(absUrl)
     var linkList []string
 
@@ -119,34 +64,23 @@ func GetLinksFromSinglePage(domainUrl string, cursor string) []string{
                 continue
             }
 
-            // Make sure it sticks at the root
-            // use compile to save time / processing power
-            //r, _ := regexp.Compile(`^/`)
-            //r, _ := regexp.Compile(`^/|^` + domainUrl + `.+`)
-
-            //r, _ := regexp.Compile(`^/|(` + domainUrl + `)`)
-
+            // Find the relative link
             href = filepath.ToSlash(href)
             r1, _ := regexp.Compile(`^/`)
             isSameDomain:= r1.MatchString(href)
             if isSameDomain {
-                //u, _ := url.Parse(rootUrl)
-                //u.Path = path.Join(u.Path, relUrl)
-                //linkList = append(linkList, u.String())
                 linkList = append(linkList, href)
             }
+
+            // Find the link starting with http
             r2, _ := regexp.Compile(`^` + domainUrl)
             isAbsPath:= r2.MatchString(href)
             if isAbsPath{
-
-                //u.Path = path.Join(u.Path, relUrl)
-                //linkList = append(linkList, u.String())
                 u, _ := url.Parse(domainUrl)
                 relPath, _ := filepath.Rel(u.String(), href)
-                //log.Println("relpath:", relPath)
-                //if relPath == "." {
-                    //relPath = "/"
-                //}
+                if relPath == "." {
+                    relPath = "/"
+                }
                 relPath = filepath.ToSlash(relPath)
                 linkList = append(linkList, relPath)
                 continue
