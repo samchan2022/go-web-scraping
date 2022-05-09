@@ -3,6 +3,9 @@ package helper
 import (
 	"log"
 	"net/http"
+	"net/url"
+	"path/filepath"
+
 	//"net/url"
 	//"path"
 	"regexp"
@@ -119,14 +122,36 @@ func GetLinksFromSinglePage(domainUrl string, cursor string) []string{
             // Make sure it sticks at the root
             // use compile to save time / processing power
             //r, _ := regexp.Compile(`^/`)
-            r, _ := regexp.Compile(`^/|^` + domainUrl + `.+`)
-            isSameDomain:= r.MatchString(href)
+            //r, _ := regexp.Compile(`^/|^` + domainUrl + `.+`)
+
+            //r, _ := regexp.Compile(`^/|(` + domainUrl + `)`)
+
+            href = filepath.ToSlash(href)
+            r1, _ := regexp.Compile(`^/`)
+            isSameDomain:= r1.MatchString(href)
             if isSameDomain {
                 //u, _ := url.Parse(rootUrl)
                 //u.Path = path.Join(u.Path, relUrl)
                 //linkList = append(linkList, u.String())
                 linkList = append(linkList, href)
             }
+            r2, _ := regexp.Compile(`^` + domainUrl)
+            isAbsPath:= r2.MatchString(href)
+            if isAbsPath{
+
+                //u.Path = path.Join(u.Path, relUrl)
+                //linkList = append(linkList, u.String())
+                u, _ := url.Parse(domainUrl)
+                relPath, _ := filepath.Rel(u.String(), href)
+                //log.Println("relpath:", relPath)
+                //if relPath == "." {
+                    //relPath = "/"
+                //}
+                relPath = filepath.ToSlash(relPath)
+                linkList = append(linkList, relPath)
+                continue
+            }
+
         }
     }
 }

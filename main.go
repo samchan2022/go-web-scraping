@@ -1,9 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"go/webscraping/helper"
 	"log"
+	"net/url"
 	"os"
+	"path"
 	"sync"
 	"time"
 )
@@ -18,9 +21,9 @@ type workerResult struct {
     Value string
 }
 
-type Container struct {
+type SyncObj struct {
     mu       sync.Mutex
-    counters []string
+    Links []string
 }
 
 //type LinkObj struct {
@@ -43,29 +46,29 @@ func contains(s []string, e string) bool {
     return false
 }
 
-func (c *Container) inc(name string) bool{
+func (c *SyncObj) add(name string) bool{
     c.mu.Lock()
     defer c.mu.Unlock()
 
-    log.Println("===================================================")
-    //log.Println(c.counters)
+    //log.Println("===================================================")
+    //log.Println(c.Links)
     //log.Println(name)
-    if !contains(c.counters, name) {
-        c.counters = append(c.counters, name)
-        log.Println("should add")
+    if !contains(c.Links, name) {
+        c.Links = append(c.Links, name)
+        //log.Println("should add")
         return true
     }
-    log.Println("should not add")
+    //log.Println("should not add")
     return false
 }
 
 
-func worker(jobs chan workerJob, results chan<- workerResult, wg *sync.WaitGroup, c *Container, domainUrl string) {
+func worker(jobs chan workerJob, results chan<- workerResult, wg *sync.WaitGroup, c *SyncObj, domainUrl string) {
     for j := range jobs {
         hrefs := helper.GetLinksFromSinglePage( domainUrl, j.Cursor)
 
         time.Sleep(time.Millisecond * 100)
-        log.Println("len: links",len(hrefs))
+        //log.Println("len: links",len(hrefs))
         for _, href := range hrefs{
             //var linkObj LinkObj
             //linkObj.Parent = j.Root
@@ -76,24 +79,37 @@ func worker(jobs chan workerJob, results chan<- workerResult, wg *sync.WaitGroup
             //linkList = append(linkList, u.String())
             //newlink := u.String()
 
-            log.Println("===================================================")
+            //log.Println("===================================================")
             //time.Sleep(time.Second* 1)
-            log.Println("root", j.Cursor)
-            log.Println("href", href)
+            //log.Println("root", j.Cursor)
+            //log.Println("href", href)
             //log.Println( c.coun00ters)
 
             //if !helper.TestUrl(newlink){
                 //continue
             //}
 
-            if !c.inc(href){
+            u, _ := url.Parse(domainUrl)
+            u1, _ := url.Parse(href)
+            u.Path = path.Join(u.Path, u1.Path)
+            absLink := u.String()
+
+            fmt.Println("absLink", absLink)
+            //r1, _ := regexp.Compile(`/`)
+            //if r1.MatchString(absLink){
+                ////log.Println("abs: ", absLink)
+            //}
+
+            if !c.add(href){
                 continue
             }
 
             // Send worker result to result channel
             //---------------------------------------------------
+            //u, _ := url.Parse(domainUrl)
+            //u.Path = path.Join(u.Path, href)
             r := workerResult{
-                Value: domainUrl + href,
+                Value: u.String(),
             }
             results <- r
 
@@ -118,10 +134,10 @@ func worker(jobs chan workerJob, results chan<- workerResult, wg *sync.WaitGroup
 
 func GetAllDomainLinks( rootUrl string, workerCount int, filename string){
 
-    c := Container{
-        //counters: map[string]int{"a": 0, "b": 0},
-        //counters: []string{rootUrl},
-        counters: []string{},
+    c := SyncObj{
+        //Links: map[string]int{"a": 0, "b": 0},
+        //Links: []string{rootUrl},
+        Links: []string{},
     }
 
     jobs := make(chan workerJob, workerCount)
@@ -168,7 +184,9 @@ func GetAllDomainLinks( rootUrl string, workerCount int, filename string){
                 data = append(data, res.Value)
                 //csv = append(csv, data)
                 f.WriteString(res.Value +"\n")
-                log.Printf(`result=%#v`, res.Value)
+
+                //TODO
+                //log.Printf(`result=%#v`, res.Value)
 
             case <-isVisitied:
                 log.Printf(`Finished`)
@@ -177,14 +195,14 @@ func GetAllDomainLinks( rootUrl string, workerCount int, filename string){
             }
         }
     //helper.WriteCsv( csv, filename)
-    log.Println("count", c.counters)
+    log.Println("count", c.Links)
 }
 
 func main(){
     //GetAllDomainLinks("http://localhost:3000", 1,"test.csv")
     sTime := time.Now()
     //GetAllDomainLinks("https://monzo.com", 3, "monzo.csv")
-    GetAllDomainLinks("http://go-colly.org", 10, "colly.csv")
+    GetAllDomainLinks("http://go-colly.org/", 10, "colly.csv")
     //GetAllDomainLinks("", 1, "colly.csv")
 
     elapsedTime := time.Since(sTime)
