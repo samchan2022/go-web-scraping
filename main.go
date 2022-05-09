@@ -201,8 +201,8 @@ func GetAllDomainLinks( rootUrl string, workerCount int, filename string){
 func main(){
     //GetAllDomainLinks("http://localhost:3000", 1,"test.csv")
     sTime := time.Now()
-    //GetAllDomainLinks("https://monzo.com", 3, "monzo.csv")
-    GetAllDomainLinks("http://go-colly.org/", 10, "colly.csv")
+    GetAllDomainLinks("https://monzo.com", 10, "monzo.csv")
+    //GetAllDomainLinks("http://go-colly.org/", 10, "colly.csv")
     //GetAllDomainLinks("", 1, "colly.csv")
 
     elapsedTime := time.Since(sTime)
