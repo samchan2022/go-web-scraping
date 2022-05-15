@@ -10,11 +10,13 @@ import (
 )
 
 func TestUrl(t *testing.T) {
-    domainUrl := "http://monzo.com/"
+    //domainUrl := "http://monzo.com/"
+    domainUrl := "http://go-colly.org/"
     workerCount := 10
     outFile := "out.csv"
+    maxDepth := 0
 
-    crawl.GetAllDomainLinks(domainUrl, workerCount, outFile)
+    crawl.GetAllDomainLinks(domainUrl, workerCount, outFile, maxDepth)
 
     data := new(helper.File).ReadCsv(outFile)
     for _, row := range data {

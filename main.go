@@ -14,11 +14,16 @@ func main(){
     //out file path
     outFile := "out.csv"
 
+    // Max depth of the recursion search
+    // 0 means no max depth limit
+    maxDepth := 0
+
     log.Println("Start crawling")
     log.Println("---------------------------------------------------")
     log.Println("domainUrl: ", domainUrl)
     log.Println("workerCount: ",workerCount)
     log.Println("outFile: ", outFile)
+    log.Println("maxDepth: ", maxDepth)
 
-    crawl.GetAllDomainLinks(domainUrl, workerCount, outFile)
+    crawl.GetAllDomainLinks(domainUrl, workerCount, outFile, maxDepth)
 }

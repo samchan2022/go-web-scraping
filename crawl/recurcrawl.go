@@ -14,6 +14,7 @@ import (
 // Job for worker
 type workerJob struct {
     Cursor string
+    Depth int
 }
 
 // Result of a worker
@@ -46,9 +47,17 @@ func (c *SyncObj) add(name string) bool{
 }
 
 
-func worker(jobs chan workerJob, results chan<- workerResult, wg *sync.WaitGroup, c *SyncObj, domainUrl string) {
+func worker(jobs chan workerJob, results chan<- workerResult, wg *sync.WaitGroup, c *SyncObj, domainUrl string, maxDepth int) {
     for j := range jobs {
         hrefs := new(helper.Html).GetLinksFromSinglePage( domainUrl, j.Cursor)
+        curDepth := j.Depth
+        log.Println("---------------------------------------------------")
+        log.Println("depth", curDepth)
+
+        if maxDepth != 0 && curDepth >= maxDepth {
+            wg.Done()
+            continue
+        }
 
         // Set some buffer time to avoid high traffic to the server
         time.Sleep(time.Millisecond * 100)
@@ -92,6 +101,7 @@ func worker(jobs chan workerJob, results chan<- workerResult, wg *sync.WaitGroup
             //---------------------------------------------------
             newJob := workerJob{
                 Cursor: href,
+                Depth: curDepth + 1,
             }
 
             // Increment the wait group count
@@ -106,7 +116,7 @@ func worker(jobs chan workerJob, results chan<- workerResult, wg *sync.WaitGroup
     }
 }
 
-func GetAllDomainLinks( rootUrl string, workerCount int, filename string){
+func GetAllDomainLinks( rootUrl string, workerCount int, filename string, maxDepth int){
     c := SyncObj{
         Links: []string{},
     }
@@ -126,7 +136,7 @@ func GetAllDomainLinks( rootUrl string, workerCount int, filename string){
 
     // Number of worker count
     for i := 0; i < workerCount; i++ {
-        go worker(jobs, results, wg, &c, rootUrl)
+        go worker(jobs, results, wg, &c, rootUrl, maxDepth)
     }
 
     // Initialise the first job
@@ -134,6 +144,7 @@ func GetAllDomainLinks( rootUrl string, workerCount int, filename string){
     go func() {
         jobs <- workerJob{
             Cursor: "",
+            Depth: 0,
         }
     }()
 
