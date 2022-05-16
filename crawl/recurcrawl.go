@@ -51,9 +51,6 @@ func worker(jobs chan workerJob, results chan<- workerResult, wg *sync.WaitGroup
     for j := range jobs {
         hrefs := new(helper.Html).GetLinksFromSinglePage( domainUrl, j.Cursor)
         curDepth := j.Depth
-        log.Println("---------------------------------------------------")
-        log.Println("depth", curDepth)
-
         if maxDepth != 0 && curDepth >= maxDepth {
             wg.Done()
             continue

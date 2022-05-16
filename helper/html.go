@@ -1,12 +1,14 @@
 package helper
 
 import (
+	"io"
 	"log"
 	"net/http"
 	"net/url"
 	"path"
 	"path/filepath"
 	"regexp"
+
 	"golang.org/x/net/html"
 )
 
@@ -25,22 +27,11 @@ func getHref(t html.Token) (ok bool, href string) {
     return
 }
 
-func (*Html) GetLinksFromSinglePage(domainUrl string, relPath string) []string{
-    u, _ := url.Parse(domainUrl)
-    u.Path = path.Join(u.Path, relPath)
-    absUrl := u.String()
-    resp, err := http.Get(absUrl)
+func getHrefsUnderDomain(b *io.ReadCloser, domainUrl string) []string{
+
     var linkList []string
 
-    if err != nil {
-        log.Println("ERROR: Failed to crawl:", absUrl)
-        return linkList
-    }
-
-    b := resp.Body
-    defer b.Close() // close Body when the function completes
-
-    z := html.NewTokenizer(b)
+    z := html.NewTokenizer(*b)
 
     for {
         tt := z.Next()
@@ -88,5 +79,23 @@ func (*Html) GetLinksFromSinglePage(domainUrl string, relPath string) []string{
 
         }
     }
+}
+
+func (*Html) GetLinksFromSinglePage(domainUrl string, relPath string) []string{
+    u, _ := url.Parse(domainUrl)
+    u.Path = path.Join(u.Path, relPath)
+    absUrl := u.String()
+    resp, err := http.Get(absUrl)
+    var linkList []string
+
+    if err != nil {
+        log.Println("ERROR: Failed to crawl:", absUrl)
+        return linkList
+    }
+
+    b := resp.Body
+    defer b.Close() // close Body when the function completes
+    linkList = getHrefsUnderDomain(&b, domainUrl)
+    return linkList
 }
 
